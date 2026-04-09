@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediScan AI — Multimodal Medical Report Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #06070a;
+    --deep: #0d0f14;
+    --panel: #13161d;
+    --panel2: #191d26;
+    --rim: rgba(255,255,255,0.07);
+    --rim2: rgba(255,255,255,0.12);
+    --teal: #00d4aa;
+    --teal2: #00b896;
+    --teal-dim: rgba(0,212,170,0.12);
+    --teal-glow: rgba(0,212,170,0.25);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.1);
+    --text: #e8eaf0;
+    --text2: #9ca3b0;
+    --text3: #5a6070;
+    --mono: 'Fira Code', monospace;
+    --serif: 'Fraunces', serif;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--void);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* CUSTOM CURSOR */
+  .cursor {
+    position: fixed; top: 0; left: 0; z-index: 99999;
+    width: 10px; height: 10px;
+    background: var(--teal);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, width 0.2s, height 0.2s, background 0.2s;
+    mix-blend-mode: screen;
+  }
+  .cursor-ring {
+    position: fixed; top: 0; left: 0; z-index: 99998;
+    width: 32px; height: 32px;
+    border: 1px solid rgba(0,212,170,0.4);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: transform 0.18s ease-out, width 0.25s, height 0.25s;
+  }
+  body:has(a:hover) .cursor, body:has(button:hover) .cursor { width: 16px; height: 16px; background: var(--amber); }
+  body:has(a:hover) .cursor-ring, body:has(button:hover) .cursor-ring { width: 48px; height: 48px; border-color: rgba(245,158,11,0.4); }
+
+  /* SCANLINE overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 9997; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 500;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px;
+    background: rgba(6,7,10,0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--rim);
+  }
+  .nav-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 14px; font-weight: 500;
+    color: var(--text);
+  }
+  .nav-brand-icon {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: var(--teal-dim); border: 1px solid rgba(0,212,170,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .nav-pill {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--teal); background: var(--teal-dim);
+    border: 1px solid rgba(0,212,170,0.25);
+    padding: 3px 10px; border-radius: 20px;
+    letter-spacing: 0.08em;
+  }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-links a {
+    font-size: 13px; color: var(--text2); text-decoration: none;
+    transition: color 0.2s; letter-spacing: 0.02em;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-gh {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--text2); text-decoration: none;
+    border: 1px solid var(--rim2); padding: 6px 14px; border-radius: 4px;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .nav-gh:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 80px 32px 60px;
+    position: relative; overflow: hidden;
+    text-align: center;
+  }
+  /* animated grid */
+  .hero-grid {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--rim) 1px, transparent 1px),
+      linear-gradient(90deg, var(--rim) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 100%);
+    animation: gridDrift 20s linear infinite;
+  }
+  @keyframes gridDrift { 0% { background-position: 0 0; } 100% { background-position: 60px 60px; } }
+
+  /* radial glow */
+  .hero-glow {
+    position: absolute; width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(0,212,170,0.06) 0%, transparent 65%);
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: glowPulse 6s ease-in-out infinite;
+  }
+  @keyframes glowPulse { 0%,100% { transform: translate(-50%,-50%) scale(1); opacity: 0.7; } 50% { transform: translate(-50%,-50%) scale(1.15); opacity: 1; } }
+
+  .hero-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+    color: var(--teal); text-transform: uppercase;
+    margin-bottom: 24px;
+    display: inline-flex; align-items: center; gap: 10px;
+    animation: fadeUp 0.8s ease both;
+  }
+  .hero-label::before, .hero-label::after {
+    content: ''; flex: 1; height: 1px; width: 40px; background: linear-gradient(90deg, transparent, var(--teal));
+  }
+  .hero-label::after { transform: scaleX(-1); }
+
+  .hero-h1 {
+    font-family: var(--serif); font-size: clamp(52px, 7vw, 96px);
+    font-weight: 300; line-height: 1.0; letter-spacing: -3px;
+    margin-bottom: 8px;
+    animation: fadeUp 0.8s 0.1s ease both;
+  }
+  .hero-h1 em { font-style: italic; color: var(--teal); }
+  .hero-h1-2 {
+    font-family: var(--serif); font-size: clamp(52px, 7vw, 96px);
+    font-weight: 300; line-height: 1.0; letter-spacing: -3px;
+    color: var(--text2); margin-bottom: 32px;
+    animation: fadeUp 0.8s 0.15s ease both;
+  }
+
+  .hero-sub {
+    font-size: 16px; line-height: 1.8; color: var(--text2);
+    max-width: 540px; margin: 0 auto 48px;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+
+  .hero-btns {
+    display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 64px;
+    animation: fadeUp 0.8s 0.25s ease both;
+  }
+  .btn-main {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--teal); color: var(--void);
+    padding: 13px 28px; border-radius: 4px;
+    font-family: var(--sans); font-weight: 600; font-size: 14px;
+    text-decoration: none; border: none; cursor: none;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-main:hover { background: #00f5c3; transform: translateY(-2px); }
+  .btn-out {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: transparent; color: var(--text);
+    padding: 13px 28px; border-radius: 4px;
+    font-family: var(--sans); font-weight: 500; font-size: 14px;
+    text-decoration: none; border: 1px solid var(--rim2); cursor: none;
+    transition: border-color 0.2s, color 0.2s, transform 0.15s;
+  }
+  .btn-out:hover { border-color: var(--teal); color: var(--teal); transform: translateY(-2px); }
+
+  /* HERO STATS */
+  .hero-stats {
+    display: flex; gap: 0; border: 1px solid var(--rim);
+    border-radius: 8px; overflow: hidden; background: var(--panel);
+    animation: fadeUp 0.8s 0.3s ease both;
+  }
+  .hstat {
+    padding: 20px 36px; border-right: 1px solid var(--rim);
+    text-align: center;
+  }
+  .hstat:last-child { border-right: none; }
+  .hstat-num {
+    font-family: var(--serif); font-size: 32px; font-weight: 300;
+    color: var(--teal); letter-spacing: -1px; line-height: 1;
+  }
+  .hstat-label { font-size: 11px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 4px; font-family: var(--mono); }
+
+  /* SECTION */
+  .section { max-width: 1080px; margin: 0 auto; padding: 80px 32px; }
+  .sec-eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+    color: var(--teal); text-transform: uppercase; margin-bottom: 12px;
+  }
+  .sec-title {
+    font-family: var(--serif); font-size: clamp(32px, 4vw, 52px);
+    font-weight: 300; letter-spacing: -1.5px; line-height: 1.1;
+    margin-bottom: 48px; color: var(--text);
+  }
+  .sec-title em { font-style: italic; color: var(--teal); }
+
+  /* DEMO SECTION */
+  .demo-wrap {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+    background: var(--rim); border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--rim);
+  }
+
+  /* UPLOAD PANEL */
+  .upload-panel {
+    background: var(--panel); padding: 40px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .panel-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em;
+    color: var(--text3); text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title::before { content: ''; width: 20px; height: 1px; background: var(--teal); }
+
+  .dropzone {
+    border: 1px dashed rgba(0,212,170,0.3);
+    border-radius: 8px; padding: 40px 24px; text-align: center;
+    cursor: none; transition: border-color 0.2s, background 0.2s;
+    background: var(--teal-dim);
+    position: relative;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--teal); background: rgba(0,212,170,0.08); }
+  .dropzone.filled { border-color: var(--teal); border-style: solid; }
+  .dz-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+  .dz-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .dz-sub { font-size: 12px; color: var(--text3); margin-bottom: 16px; }
+  .dz-btn {
+    display: inline-block; background: var(--panel2);
+    border: 1px solid var(--rim2); color: var(--text);
+    padding: 8px 18px; border-radius: 4px;
+    font-size: 13px; font-weight: 500; cursor: none;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .dz-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .dz-formats { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 12px; letter-spacing: 0.05em; }
+  #file-input { display: none; }
+
+  .file-chip {
+    display: none; align-items: center; gap: 12px;
+    background: var(--panel2); border: 1px solid rgba(0,212,170,0.2);
+    border-radius: 6px; padding: 12px 16px;
+  }
+  .file-chip.show { display: flex; }
+  .file-chip-img { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; background: var(--panel); }
+  .file-chip-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .file-chip-size { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 2px; }
+  .file-chip-check { margin-left: auto; color: var(--teal); font-size: 18px; }
+
+  .field-group { display: flex; flex-direction: column; gap: 6px; }
+  .field-label { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+  .field-select {
+    background: var(--panel2); border: 1px solid var(--rim2); border-radius: 4px;
+    color: var(--text); padding: 10px 14px; font-family: var(--sans); font-size: 13px;
+    appearance: none; transition: border-color 0.2s; cursor: none;
+  }
+  .field-select:focus { outline: none; border-color: var(--teal); }
+
+  .analyse-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: var(--teal); color: var(--void);
+    border: none; border-radius: 4px; padding: 14px;
+    font-family: var(--sans); font-weight: 700; font-size: 15px;
+    cursor: none; transition: background 0.2s, transform 0.15s;
+    width: 100%;
+  }
+  .analyse-btn:hover:not(:disabled) { background: #00f0bc; transform: translateY(-1px); }
+  .analyse-btn:disabled { background: var(--panel2); color: var(--text3); }
+  .spin { width: 16px; height: 16px; border: 2px solid rgba(6,7,10,0.3); border-top-color: var(--void); border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* PROGRESS */
+  .progress-wrap { display: none; flex-direction: column; gap: 6px; }
+  .progress-wrap.show { display: flex; }
+  .prog-step {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 4px;
+    font-size: 12px; color: var(--text3); font-family: var(--mono);
+    transition: background 0.3s, color 0.3s;
+  }
+  .prog-step.done { color: var(--teal); background: var(--teal-dim); }
+  .prog-step.active { color: var(--amber); background: var(--amber-dim); animation: stepPulse 1s ease-in-out infinite; }
+  @keyframes stepPulse { 0%,100%{opacity:1;} 50%{opacity:0.6;} }
+  .prog-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  /* REPORT PANEL */
+  .report-panel {
+    background: var(--panel); padding: 40px;
+    display: flex; flex-direction: column; gap: 0;
+    overflow-y: auto; max-height: 700px;
+  }
+  .report-empty {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; gap: 12px; padding: 40px 0;
+  }
+  .report-empty-icon { font-size: 48px; opacity: 0.2; }
+  .report-empty-text { font-size: 13px; color: var(--text3); line-height: 1.7; }
+  .report-content { display: none; flex-direction: column; gap: 20px; }
+  .report-content.show { display: flex; }
+
+  /* SCAN PREVIEW */
+  .scan-preview {
+    background: #000; border-radius: 6px; overflow: hidden;
+    position: relative; aspect-ratio: 16/7;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .scan-preview img { height: 100%; width: 100%; object-fit: contain; }
+  .scan-sweep {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--teal) 50%, transparent 100%);
+    animation: sweep 2s ease-in-out infinite; opacity: 0.7;
+  }
+  @keyframes sweep { 0%{top:0%;opacity:0;} 10%{opacity:1;} 90%{opacity:1;} 100%{top:100%;opacity:0;} }
+  .scan-grid-overlay {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(0,212,170,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.04) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+  }
+  .scan-label {
+    position: absolute; top: 10px; left: 12px;
+    font-family: var(--mono); font-size: 10px; color: rgba(0,212,170,0.7);
+    letter-spacing: 0.1em;
+  }
+  .scan-meta {
+    position: absolute; bottom: 10px; right: 12px;
+    font-family: var(--mono); font-size: 9px; color: rgba(0,212,170,0.5);
+    text-align: right; line-height: 1.8;
+  }
+
+  /* REPORT CARDS */
+  .rcard {
+    background: var(--panel2); border: 1px solid var(--rim);
+    border-radius: 6px; overflow: hidden;
+  }
+  .rcard-head {
+    padding: 10px 16px; border-bottom: 1px solid var(--rim);
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,0.02);
+  }
+  .rcard-key {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .rcard-badge {
+    font-family: var(--mono); font-size: 9px; padding: 2px 8px;
+    border-radius: 20px; letter-spacing: 0.08em; font-weight: 500;
+  }
+  .badge-teal { background: var(--teal-dim); color: var(--teal); border: 1px solid rgba(0,212,170,0.2); }
+  .badge-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.2); }
+  .badge-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+  .rcard-body { padding: 16px; }
+  .rcard-text { font-size: 13px; line-height: 1.8; color: var(--text2); }
+  .rcard-text strong { color: var(--text); font-weight: 600; }
+
+  .findings-ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .findings-ul li {
+    font-size: 12px; line-height: 1.7; color: var(--text2);
+    padding-left: 16px; position: relative;
+  }
+  .findings-ul li::before { content: '›'; position: absolute; left: 0; color: var(--teal); font-weight: 600; }
+
+  /* CONFIDENCE */
+  .conf-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .conf-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; }
+  .conf-val { font-family: var(--mono); font-size: 13px; color: var(--teal); font-weight: 500; }
+  .conf-bar { height: 4px; background: var(--panel); border-radius: 2px; overflow: hidden; }
+  .conf-fill { height: 100%; background: linear-gradient(90deg, var(--teal2), var(--teal)); border-radius: 2px; width: 0; transition: width 1.4s cubic-bezier(0.22,1,0.36,1); }
+
+  /* RAG sources */
+  .rag-list { font-family: var(--mono); font-size: 10px; line-height: 2; color: var(--text3); }
+  .rag-num { color: var(--teal); }
+
+  /* REPORT ACTIONS */
+  .report-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .ract-btn {
+    flex: 1; padding: 9px; border-radius: 4px;
+    font-size: 12px; font-weight: 600; cursor: none;
+    border: 1px solid var(--rim2); background: var(--panel);
+    color: var(--text2); transition: all 0.2s; text-align: center;
+  }
+  .ract-btn:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-dim); }
+  .ract-btn.accent { background: var(--teal); color: var(--void); border-color: var(--teal); }
+  .ract-btn.accent:hover { background: #00f0bc; }
+
+  /* ARCHITECTURE */
+  .arch-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
+    background: var(--rim); border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--rim);
+  }
+  .arch-step {
+    background: var(--panel); padding: 28px 20px;
+    transition: background 0.2s;
+    position: relative;
+  }
+  .arch-step:hover { background: var(--panel2); }
+  .arch-num { font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 0.1em; margin-bottom: 12px; }
+  .arch-name { font-family: var(--serif); font-size: 17px; font-weight: 400; color: var(--text); margin-bottom: 8px; line-height: 1.2; }
+  .arch-detail { font-size: 11px; color: var(--text3); line-height: 1.7; margin-bottom: 10px; }
+  .arch-tech { font-family: var(--mono); font-size: 10px; color: rgba(0,212,170,0.6); letter-spacing: 0.05em; }
+  .arch-arrow {
+    position: absolute; right: -10px; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px; background: var(--void); border: 1px solid var(--rim2);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--text3); z-index: 1;
+  }
+
+  /* TECH STACK */
+  .stack-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 32px; }
+  .stack-pill {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    background: var(--panel); border: 1px solid var(--rim2);
+    padding: 7px 14px; border-radius: 3px; letter-spacing: 0.04em;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .stack-pill:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* GITHUB SECTION */
+  .gh-section {
+    background: var(--panel); border: 1px solid var(--rim);
+    border-radius: 12px; overflow: hidden;
+  }
+  .gh-top {
+    padding: 32px 36px; border-bottom: 1px solid var(--rim);
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+  }
+  .gh-title { font-family: var(--serif); font-size: 28px; font-weight: 300; letter-spacing: -0.5px; }
+  .gh-url {
+    font-family: var(--mono); font-size: 12px; color: var(--teal);
+    background: var(--teal-dim); border: 1px solid rgba(0,212,170,0.2);
+    padding: 8px 16px; border-radius: 4px; text-decoration: none;
+    transition: background 0.2s;
+  }
+  .gh-url:hover { background: rgba(0,212,170,0.15); }
+
+  /* file tree */
+  .file-tree {
+    padding: 28px 36px; font-family: var(--mono); font-size: 12px;
+    line-height: 2; color: var(--text2);
+    border-bottom: 1px solid var(--rim);
+  }
+  .ft-dir { color: var(--teal); }
+  .ft-file { color: var(--text2); }
+  .ft-comment { color: var(--text3); }
+  .ft-indent { padding-left: 20px; display: block; }
+  .ft-indent2 { padding-left: 40px; display: block; }
+
+  /* steps */
+  .gh-steps { padding: 32px 36px; display: flex; flex-direction: column; gap: 20px; }
+  .gh-step {
+    display: flex; gap: 18px;
+  }
+  .gh-step-num {
+    width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: 50%; background: var(--teal-dim);
+    border: 1px solid rgba(0,212,170,0.3);
+    font-family: var(--mono); font-size: 12px; color: var(--teal);
+    display: flex; align-items: center; justify-content: center; font-weight: 500;
+  }
+  .gh-step-body {}
+  .gh-step-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .gh-step-desc { font-size: 12px; color: var(--text3); line-height: 1.7; }
+  .code-snippet {
+    margin-top: 8px; background: var(--void); border: 1px solid var(--rim);
+    border-radius: 4px; padding: 10px 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    line-height: 1.8;
+  }
+  .cs-green { color: #86efac; }
+  .cs-blue { color: #93c5fd; }
+  .cs-yellow { color: #fde68a; }
+  .cs-dim { color: var(--text3); }
+
+  /* DISCLAIMER */
+  .disclaimer {
+    background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2);
+    border-left: 3px solid var(--amber); border-radius: 0 6px 6px 0;
+    padding: 16px 20px; font-size: 12px; color: rgba(245,158,11,0.8); line-height: 1.7;
+    margin-top: 60px;
+  }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--rim); max-width: 1080px; margin: 0 auto; }
+
+  /* FOOTER */
+  footer {
+    background: var(--deep); border-top: 1px solid var(--rim);
+    padding: 32px; text-align: center;
+    font-family: var(--mono); font-size: 11px; color: var(--text3);
+    line-height: 2; letter-spacing: 0.05em;
+  }
+  footer a { color: var(--teal); text-decoration: none; }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel2); border: 1px solid var(--teal);
+    color: var(--teal); font-family: var(--mono); font-size: 12px;
+    padding: 10px 22px; border-radius: 4px;
+    opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 9000;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
+
+  @media (max-width: 768px) {
+    .demo-wrap { grid-template-columns: 1fr; }
+    .arch-grid { grid-template-columns: 1fr 1fr; }
+    .hero-stats { flex-direction: column; }
+    .hstat { border-right: none; border-bottom: 1px solid var(--rim); }
+    .hstat:last-child { border-bottom: none; }
+    nav { padding: 0 16px; }
+    .nav-links { display: none; }
+    .section { padding: 60px 20px; }
+    .upload-panel, .report-panel { padding: 24px; }
+    .gh-top, .file-tree, .gh-steps { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursor-ring"></div>
+<div class="toast" id="toast"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-brand-icon">⚕</div>
+    MediScan AI
+    <span class="nav-pill">v1.0</span>
+  </div>
+  <div class="nav-links">
+    <a href="#demo">Demo</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#github">GitHub</a>
+  </div>
+  <a href="https://github.com/rijulthakur34/mediscan-ai" target="_blank" class="nav-gh">
+    ⭐ Star on GitHub
+  </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+
+  <div class="hero-label">Generative AI · Vision Language Model · RAG</div>
+  <h1 class="hero-h1">MRI Scan →<br><em>Diagnostic</em></h1>
+  <h2 class="hero-h1-2">Report Generator.</h2>
+  <p class="hero-sub">
+    A multimodal AI pipeline that ingests raw MRI scans and generates
+    structured radiology-grade reports using a Vision-Language Model
+    grounded in real medical literature via RAG.
+  </p>
+  <div class="hero-btns">
+    <a href="#demo" class="btn-main">Try Live Demo ↓</a>
+    <a href="#github" class="btn-out">View on GitHub ↗</a>
+  </div>
+  <div class="hero-stats">
+    <div class="hstat">
+      <div class="hstat-num">~4.2s</div>
+      <div class="hstat-label">Per Scan</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-num">RAG</div>
+      <div class="hstat-label">Grounded Output</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-num">VLM</div>
+      <div class="hstat-label">LLaVA-Med</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-num">5</div>
+      <div class="hstat-label">Pipeline Stages</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- DEMO SECTION -->
+<div class="section" id="demo">
+  <div class="sec-eyebrow">// live_demo</div>
+  <div class="sec-title">Upload a Scan,<br>Get a <em>Report.</em></div>
+
+  <div class="demo-wrap">
+    <!-- LEFT: UPLOAD -->
+    <div class="upload-panel">
+      <div class="panel-title">Input</div>
+
+      <div class="dropzone" id="dropzone"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="ev(event,'drag',true)"
+           ondrop="onDrop(event)"
+           ondragleave="ev(event,'drag',false)">
+        <span class="dz-icon" id="dz-icon">🧠</span>
+        <div class="dz-title" id="dz-title">Drop MRI scan here</div>
+        <div class="dz-sub" id="dz-sub">PNG · JPG · DICOM · NIfTI</div>
+        <div class="dz-btn">Browse files</div>
+        <div class="dz-formats">Supported: .png .jpg .dcm .nii .tiff</div>
+      </div>
+      <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.dcm,.nii,.tiff" onchange="onFileSelect(this)">
+
+      <div class="file-chip" id="file-chip">
+        <img class="file-chip-img" id="chip-img" src="" alt="">
+        <div>
+          <div class="file-chip-name" id="chip-name">—</div>
+          <div class="file-chip-size" id="chip-size">—</div>
+        </div>
+        <div class="file-chip-check">✓</div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Scan Type</div>
+        <select class="field-select" id="scan-type">
+          <option value="brain">Brain MRI</option>
+          <option value="spine">Spine MRI</option>
+          <option value="chest">Chest X-Ray</option>
+          <option value="knee">Knee MRI</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Report Detail</div>
+        <select class="field-select" id="report-detail">
+          <option value="full">Full Radiology Report</option>
+          <option value="brief">Brief Summary</option>
+        </select>
+      </div>
+
+      <button class="analyse-btn" id="analyse-btn" onclick="runAnalysis()" disabled>
+        <span class="spin" id="spin"></span>
+        <span id="btn-label">Analyse Scan →</span>
+      </button>
+
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="prog-step" id="p1"><div class="prog-dot"></div>MRI preprocessing</div>
+        <div class="prog-step" id="p2"><div class="prog-dot"></div>ViT feature extraction</div>
+        <div class="prog-step" id="p3"><div class="prog-dot"></div>RAG document retrieval</div>
+        <div class="prog-step" id="p4"><div class="prog-dot"></div>VLM report generation</div>
+        <div class="prog-step" id="p5"><div class="prog-dot"></div>Structuring output</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: REPORT -->
+    <div class="report-panel">
+      <div class="panel-title" style="margin-bottom:20px;">Report Output</div>
+
+      <div class="report-empty" id="report-empty">
+        <div class="report-empty-icon">📋</div>
+        <div class="report-empty-text">Upload an MRI scan and click<br>Analyse Scan to generate a report.</div>
+      </div>
+
+      <div class="report-content" id="report-content">
+
+        <div class="scan-preview">
+          <img id="result-img" src="" alt="MRI">
+          <div class="scan-grid-overlay"></div>
+          <div class="scan-sweep"></div>
+          <div class="scan-label" id="scan-label">BRAIN MRI · T2W</div>
+          <div class="scan-meta" id="scan-meta">LLaVA-Med · RAG<br>FAISS · LangChain</div>
+        </div>
+
+        <div class="rcard">
+          <div class="rcard-head">
+            <div class="rcard-key">// findings</div>
+            <span class="rcard-badge badge-red" id="sev-badge">URGENT</span>
+          </div>
+          <div class="rcard-body">
+            <ul class="findings-ul" id="findings-ul"></ul>
+          </div>
+        </div>
+
+        <div class="rcard">
+          <div class="rcard-head">
+            <div class="rcard-key">// impression</div>
+            <span class="rcard-badge badge-amber">VLM Generated</span>
+          </div>
+          <div class="rcard-body">
+            <p class="rcard-text" id="impression-text"></p>
+            <div style="margin-top:14px;">
+              <div class="conf-row">
+                <span class="conf-label">Model Confidence</span>
+                <span class="conf-val" id="conf-val">—</span>
+              </div>
+              <div class="conf-bar"><div class="conf-fill" id="conf-fill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rcard">
+          <div class="rcard-head">
+            <div class="rcard-key">// recommendation</div>
+            <span class="rcard-badge badge-teal">Clinical</span>
+          </div>
+          <div class="rcard-body">
+            <p class="rcard-text" id="rec-text"></p>
+          </div>
+        </div>
+
+        <div class="rcard">
+          <div class="rcard-head">
+            <div class="rcard-key">// rag_sources</div>
+            <span class="rcard-badge badge-teal">3 Retrieved</span>
+          </div>
+          <div class="rcard-body">
+            <div class="rag-list" id="rag-list"></div>
+          </div>
+        </div>
+
+        <div class="report-actions">
+          <div class="ract-btn accent" onclick="downloadReport()">⬇ Download</div>
+          <div class="ract-btn" onclick="copyReport()">⎘ Copy</div>
+          <div class="ract-btn" onclick="resetDemo()">↺ Reset</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ARCHITECTURE -->
+<div class="section" id="architecture">
+  <div class="sec-eyebrow">// pipeline_architecture</div>
+  <div class="sec-title">How It <em>Works.</em></div>
+
+  <div class="arch-grid">
+    <div class="arch-step">
+      <div class="arch-arrow">→</div>
+      <div class="arch-num">01 — preprocess</div>
+      <div class="arch-name">MRI Enhancement</div>
+      <div class="arch-detail">CLAHE, gamma correction, histogram equalization, noise removal & Canny edge detection</div>
+      <div class="arch-tech">OpenCV · NumPy · scikit-image</div>
+    </div>
+    <div class="arch-step">
+      <div class="arch-arrow">→</div>
+      <div class="arch-num">02 — encode</div>
+      <div class="arch-name">Vision Encoder</div>
+      <div class="arch-detail">Pre-trained ViT extracts spatial feature embeddings from the enhanced MRI scan</div>
+      <div class="arch-tech">PyTorch · Hugging Face · ViT</div>
+    </div>
+    <div class="arch-step">
+      <div class="arch-arrow">→</div>
+      <div class="arch-num">03 — retrieve</div>
+      <div class="arch-name">RAG Layer</div>
+      <div class="arch-detail">FAISS vector search retrieves top-3 grounding docs from medical literature corpus</div>
+      <div class="arch-tech">LangChain · FAISS · SentenceTransformers</div>
+    </div>
+    <div class="arch-step">
+      <div class="arch-arrow">→</div>
+      <div class="arch-num">04 — generate</div>
+      <div class="arch-name">VLM Report</div>
+      <div class="arch-detail">LLaVA-Med generates Findings, Impression & Recommendation grounded in retrieved context</div>
+      <div class="arch-tech">LLaVA · Ollama · LangChain</div>
+    </div>
+    <div class="arch-step">
+      <div class="arch-num">05 — serve</div>
+      <div class="arch-name">API + Deploy</div>
+      <div class="arch-detail">FastAPI endpoint, Docker containerized, deployed on AWS EC2 with Gradio demo UI</div>
+      <div class="arch-tech">FastAPI · Docker · AWS EC2 · Gradio</div>
+    </div>
+  </div>
+
+  <div class="stack-grid">
+    <span class="stack-pill">PyTorch</span><span class="stack-pill">LLaVA-Med</span>
+    <span class="stack-pill">LangChain</span><span class="stack-pill">FAISS</span>
+    <span class="stack-pill">ViT</span><span class="stack-pill">OpenCV</span>
+    <span class="stack-pill">FastAPI</span><span class="stack-pill">Docker</span>
+    <span class="stack-pill">AWS EC2</span><span class="stack-pill">Gradio</span>
+    <span class="stack-pill">Hugging Face</span><span class="stack-pill">SentenceTransformers</span>
+    <span class="stack-pill">scikit-image</span><span class="stack-pill">Pydantic</span>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- GITHUB SECTION -->
+<div class="section" id="github">
+  <div class="sec-eyebrow">// github_repo</div>
+  <div class="sec-title">Build the<br><em>Repo.</em></div>
+
+  <div class="gh-section">
+    <div class="gh-top">
+      <div>
+        <div class="gh-title">mediscan-ai</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:4px;">Multimodal Medical Report Generator · PyTorch · LLaVA · RAG</div>
+      </div>
+      <a class="gh-url" href="https://github.com/rijulthakur34/mediscan-ai" target="_blank">github.com/rijulthakur34/mediscan-ai ↗</a>
+    </div>
+
+    <!-- File tree -->
+    <div class="file-tree">
+      <span class="ft-dir">mediscan-ai/</span>
+      <span class="ft-indent ft-file">├── README.md <span class="ft-comment">← the most important file</span></span>
+      <span class="ft-indent ft-file">├── requirements.txt</span>
+      <span class="ft-indent ft-file">├── .gitignore</span>
+      <span class="ft-indent ft-file">├── LICENSE</span>
+      <span class="ft-indent ft-dir">│</span>
+      <span class="ft-indent ft-dir">├── pipeline/</span>
+      <span class="ft-indent2 ft-file">├── __init__.py</span>
+      <span class="ft-indent2 ft-file">├── preprocess.py <span class="ft-comment">← CLAHE, gamma, denoise</span></span>
+      <span class="ft-indent2 ft-file">├── encoder.py <span class="ft-comment">← ViT feature extraction</span></span>
+      <span class="ft-indent2 ft-file">├── rag.py <span class="ft-comment">← FAISS + LangChain retrieval</span></span>
+      <span class="ft-indent2 ft-file">├── generator.py <span class="ft-comment">← LLaVA report generation</span></span>
+      <span class="ft-indent2 ft-file">└── run.py <span class="ft-comment">← main entry point</span></span>
+      <span class="ft-indent ft-dir">│</span>
+      <span class="ft-indent ft-dir">├── api/</span>
+      <span class="ft-indent2 ft-file">├── main.py <span class="ft-comment">← FastAPI app</span></span>
+      <span class="ft-indent2 ft-file">└── schemas.py <span class="ft-comment">← Pydantic models</span></span>
+      <span class="ft-indent ft-dir">│</span>
+      <span class="ft-indent ft-dir">├── data/</span>
+      <span class="ft-indent2 ft-file">├── sample_scans/ <span class="ft-comment">← 3-5 demo MRI images</span></span>
+      <span class="ft-indent2 ft-file">└── medical_corpus/ <span class="ft-comment">← PDFs for RAG knowledge base</span></span>
+      <span class="ft-indent ft-dir">│</span>
+      <span class="ft-indent ft-dir">├── notebooks/</span>
+      <span class="ft-indent2 ft-file">└── demo.ipynb <span class="ft-comment">← interactive walkthrough</span></span>
+      <span class="ft-indent ft-dir">│</span>
+      <span class="ft-indent ft-dir">└── docker/</span>
+      <span class="ft-indent2 ft-file">├── Dockerfile</span>
+      <span class="ft-indent2 ft-file">└── docker-compose.yml</span>
+    </div>
+
+    <!-- Steps -->
+    <div class="gh-steps">
+
+      <div class="gh-step">
+        <div class="gh-step-num">1</div>
+        <div class="gh-step-body">
+          <div class="gh-step-title">Create the GitHub repo</div>
+          <div class="gh-step-desc">Go to github.com → New Repository → name it <code style="color:var(--teal)">mediscan-ai</code> → add README → MIT License → create.</div>
+          <div class="code-snippet">
+            <span class="cs-green">git init</span><br>
+            <span class="cs-green">git remote add origin</span> <span class="cs-blue">https://github.com/rijulthakur34/mediscan-ai.git</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="gh-step">
+        <div class="gh-step-num">2</div>
+        <div class="gh-step-body">
+          <div class="gh-step-title">Create the folder structure</div>
+          <div class="gh-step-desc">Run this in terminal to create all folders and empty files at once.</div>
+          <div class="code-snippet">
+            <span class="cs-green">mkdir</span> <span class="cs-blue">pipeline api data/sample_scans data/medical_corpus notebooks docker</span><br>
+            <span class="cs-green">touch</span> <span class="cs-blue">pipeline/__init__.py pipeline/preprocess.py pipeline/encoder.py</span><br>
+            <span class="cs-green">touch</span> <span class="cs-blue">pipeline/rag.py pipeline/generator.py pipeline/run.py</span><br>
+            <span class="cs-green">touch</span> <span class="cs-blue">api/main.py api/schemas.py requirements.txt .gitignore</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="gh-step">
+        <div class="gh-step-num">3</div>
+        <div class="gh-step-body">
+          <div class="gh-step-title">Write your README.md — this is everything</div>
+          <div class="gh-step-desc">Your README is what recruiters see first. Include: project description, architecture diagram, tech stack table, quick-start commands, sample output screenshot, and a disclaimer. I can generate the full README for you — just ask.</div>
+        </div>
+      </div>
+
+      <div class="gh-step">
+        <div class="gh-step-num">4</div>
+        <div class="gh-step-body">
+          <div class="gh-step-title">Add a demo notebook</div>
+          <div class="gh-step-desc">Create <code style="color:var(--teal)">notebooks/demo.ipynb</code> that walks through the full pipeline step by step. Run it on Google Colab and add a "Open in Colab" badge to your README — makes it instantly runnable for anyone.</div>
+          <div class="code-snippet">
+            <span class="cs-dim">[![Open In Colab]</span><span class="cs-blue">(https://colab.research.google.com/assets/colab-badge.svg)</span><span class="cs-dim">]</span><br>
+            <span class="cs-dim">(https://colab.research.google.com/github/rijulthakur34/mediscan-ai/blob/main/notebooks/demo.ipynb)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="gh-step">
+        <div class="gh-step-num">5</div>
+        <div class="gh-step-body">
+          <div class="gh-step-title">Deploy demo on Hugging Face Spaces (free)</div>
+          <div class="gh-step-desc">Push a Gradio app to Hugging Face Spaces — completely free. This gives you a live URL to put on your resume.</div>
+          <div class="code-snippet">
+            <span class="cs-dim"># app.py — paste this in Hugging Face Space</span><br>
+            <span class="cs-green">import</span> <span class="cs-blue">gradio as gr</span><br>
+            <span class="cs-green">def</span> <span class="cs-yellow">analyse</span>(image, scan_type):<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs-dim"># call your pipeline here</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs-green">return</span> <span class="cs-blue">report_text</span><br><br>
+            <span class="cs-blue">gr</span>.Interface(fn=analyse, inputs=[<span class="cs-yellow">"image"</span>, <span class="cs-yellow">"text"</span>],<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;outputs=<span class="cs-yellow">"text"</span>).launch()
+          </div>
+        </div>
+      </div>
+
+      <div class="gh-step">
+        <div class="gh-step-num">6</div>
+        <div class="gh-step-body">
+          <div class="gh-step-title">Add repo topics & description</div>
+          <div class="gh-step-desc">On your GitHub repo page → click the gear ⚙ next to "About" → add description and topics. This makes it searchable and professional.</div>
+          <div class="code-snippet">
+            <span class="cs-dim">Topics to add:</span><br>
+            <span class="cs-blue">medical-imaging</span> · <span class="cs-blue">vision-language-model</span> · <span class="cs-blue">rag</span> · <span class="cs-blue">llava</span><br>
+            <span class="cs-blue">deep-learning</span> · <span class="cs-blue">pytorch</span> · <span class="cs-blue">generative-ai</span> · <span class="cs-blue">radiology</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    ⚠ <strong>Research & Educational Use Only.</strong> MediScan AI is a demonstration of a Generative AI pipeline and is not a certified medical device. Reports generated by this system should not be used for clinical diagnosis or patient care decisions. Always consult a licensed radiologist or physician.
+  </div>
+</div>
+
+<footer>
+  <div>MediScan AI — Multimodal Medical Report Generator</div>
+  <div>Built by <a href="https://github.com/rijulthakur34" target="_blank">Rijul Thakur</a> · B.Tech CSE · Bennett University · 2026</div>
+  <div style="margin-top:4px;opacity:0.4;">PyTorch · LLaVA · LangChain · FAISS · FastAPI · Docker · AWS</div>
+</footer>
+
+<script>
+// CURSOR
+const cur = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove', e => { mx=e.clientX; my=e.clientY; cur.style.left=mx+'px'; cur.style.top=my+'px'; });
+(function animRing(){
+  rx+=(mx-rx)*0.12; ry+=(my-ry)*0.12;
+  ring.style.left=rx+'px'; ring.style.top=ry+'px';
+  requestAnimationFrame(animRing);
+})();
+
+// FILE UPLOAD
+let uploadedFile=null, uploadedURL=null, reportData=null;
+
+function ev(e, cls, add) { e.preventDefault(); document.getElementById('dropzone').classList[add?'add':'remove'](cls); }
+function onDrop(e) {
+  e.preventDefault(); document.getElementById('dropzone').classList.remove('drag');
+  if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+}
+function onFileSelect(inp) { if(inp.files[0]) setFile(inp.files[0]); }
+
+function setFile(f) {
+  uploadedFile = f;
+  const dz = document.getElementById('dropzone');
+  dz.classList.add('filled');
+  document.getElementById('dz-icon').textContent = '✅';
+  document.getElementById('dz-title').textContent = f.name;
+  document.getElementById('dz-sub').textContent = 'Ready to analyse';
+  const chip = document.getElementById('file-chip');
+  chip.classList.add('show');
+  document.getElementById('chip-name').textContent = f.name;
+  document.getElementById('chip-size').textContent = (f.size/1024).toFixed(1)+' KB';
+  const r = new FileReader();
+  r.onload = e => { uploadedURL = e.target.result; document.getElementById('chip-img').src = uploadedURL; };
+  r.readAsDataURL(f);
+  document.getElementById('analyse-btn').disabled = false;
+}
+
+// DEMO REPORTS
+const REPORTS = {
+  brain: {
+    label:'BRAIN MRI · T2W', sev:'HIGH ALERT', sevClass:'badge-red',
+    findings:[
+      'Irregular hyperintense lesion in right frontal lobe, ~2.3 × 1.8 cm axial dimensions',
+      'Perilesional edema with mild mass effect on adjacent sulci',
+      'Restricted diffusion pattern consistent with high-grade neoplastic tissue',
+      'No midline shift detected on current imaging',
+      'Contrast enhancement pattern suggests disrupted blood-brain barrier'
+    ],
+    impression: '<strong>Highly suspicious for high-grade glioma (WHO Grade III–IV),</strong> most likely Glioblastoma Multiforme (GBM). Irregular margins, perilesional edema, and restricted diffusion pattern support this impression. Differential: brain metastasis or high-grade lymphoma.',
+    rec: 'Urgent neurosurgical consultation recommended. Gadolinium-contrast MRI and MR spectroscopy for further characterisation. Stereotactic biopsy for histopathological confirmation. Functional eloquence mapping prior to any surgical intervention.',
+    conf: 87,
+    rag: ['<span class="rag-num">[1]</span> Louis et al. (2021). "WHO Classification of CNS Tumors, 5th Ed." Brain Pathology.','<span class="rag-num">[2]</span> Stupp et al. (2005). "Radiotherapy + Temozolomide for GBM." NEJM 352:987–996.','<span class="rag-num">[3]</span> Wen et al. (2020). "Updated Response Assessment in Neuro-Oncology." Neuro-Oncology 12(11).']
+  },
+  spine: {
+    label:'SPINE MRI · SAGITTAL', sev:'MODERATE', sevClass:'badge-amber',
+    findings:[
+      'L4-L5 disc: moderate posterior herniation impinging on thecal sac',
+      'Bilateral neural foraminal stenosis at L4-L5, right greater than left',
+      'Loss of disc height and T2 signal at L5-S1 — degenerative disc disease',
+      'Mild ligamentum flavum hypertrophy contributing to central stenosis'
+    ],
+    impression: 'Findings consistent with <strong>L4-L5 disc herniation with moderate central canal stenosis</strong> and bilateral foraminal compromise. L5-S1 degenerative disc disease noted as secondary finding.',
+    rec: 'Conservative management: physical therapy and NSAIDs as first-line. Epidural steroid injection if symptoms persist >6 weeks. Surgical consultation for microdiscectomy if neurological deficits progress.',
+    conf: 92,
+    rag: ['<span class="rag-num">[1]</span> Deyo et al. (2012). "Back Pain." NEJM 366:1527–1538.','<span class="rag-num">[2]</span> Chou et al. (2017). "Imaging Strategies for Lumbar Disc Herniation." Annals of Internal Medicine.','<span class="rag-num">[3]</span> Kreiner et al. (2014). "NASS Evidence-Based Guideline: Lumbar Disc Herniation with Radiculopathy."']
+  },
+  chest: {
+    label:'CHEST X-RAY · AP', sev:'URGENT', sevClass:'badge-red',
+    findings:[
+      'Bilateral perihilar opacities in bat-wing distribution pattern',
+      'Mild cardiomegaly — cardiothoracic ratio 0.56',
+      'Bilateral costophrenic angle blunting suggesting small pleural effusions',
+      'No pneumothorax or focal consolidation identified'
+    ],
+    impression: 'Pattern consistent with <strong>pulmonary oedema, likely cardiogenic aetiology,</strong> given perihilar distribution, cardiomegaly, and bilateral effusions.',
+    rec: 'Urgent cardiology consultation. Echocardiography to assess ejection fraction. BNP/NT-proBNP serum levels recommended. Initiate diuresis with furosemide pending clinical correlation.',
+    conf: 83,
+    rag: ['<span class="rag-num">[1]</span> Ponikowski et al. (2016). "2016 ESC Guidelines for Heart Failure." European Heart Journal.','<span class="rag-num">[2]</span> Edoardo et al. (2021). "Chest X-Ray in Cardiogenic Pulmonary Oedema." Heart Failure 9(4).','<span class="rag-num">[3]</span> Collins et al. (2006). "Diagnostic Accuracy of Pulmonary Oedema." Critical Care Medicine.']
+  },
+  knee: {
+    label:'KNEE MRI · CORONAL', sev:'MODERATE', sevClass:'badge-amber',
+    findings:[
+      'Complete tear of anterior cruciate ligament (ACL) at mid-substance',
+      'Bone contusions at lateral femoral condyle and posterior tibial plateau',
+      'Small joint effusion without synovial thickening',
+      'Medial meniscus posterior horn shows grade II signal — no definite tear'
+    ],
+    impression: '<strong>Complete ACL tear</strong> with associated pivot-shift bone contusion pattern. Medial meniscus posterior horn degeneration noted; no full-thickness tear identified.',
+    rec: 'Orthopaedic surgery consultation for ACL reconstruction planning. MRI arthrogram may be considered for meniscal evaluation if clinical concern persists. RICE protocol and crutches for immediate management.',
+    conf: 94,
+    rag: ['<span class="rag-num">[1]</span> Noyes & Barber-Westin (2012). "ACL Tears in Female Athletes." Sports Medicine.','<span class="rag-num">[2]</span> Spindler & Wright (2008). "ACL Diagnosis and Management." NEJM 359:2135–2142.','<span class="rag-num">[3]</span> Sanders et al. (2016). "MRI of ACL Tears — Diagnostic Accuracy." AJR 207(4).']
+  }
+};
+
+async function runAnalysis() {
+  const btn = document.getElementById('analyse-btn');
+  btn.disabled = true;
+  document.getElementById('spin').style.display = 'block';
+  document.getElementById('btn-label').textContent = 'Analysing...';
+  document.getElementById('progress-wrap').classList.add('show');
+  document.getElementById('report-empty').style.display = 'none';
+  document.getElementById('report-content').classList.remove('show');
+
+  const pids = ['p1','p2','p3','p4','p5'];
+  for(let i=0;i<pids.length;i++){
+    await wait(i===0?300:800);
+    if(i>0) { document.getElementById(pids[i-1]).classList.remove('active'); document.getElementById(pids[i-1]).classList.add('done'); }
+    document.getElementById(pids[i]).classList.add('active');
+  }
+  await wait(900);
+  document.getElementById('p5').classList.remove('active');
+  document.getElementById('p5').classList.add('done');
+  await wait(300);
+
+  const scanType = document.getElementById('scan-type').value;
+  const data = REPORTS[scanType] || REPORTS.brain;
+  reportData = data;
+  renderReport(data);
+
+  btn.disabled = false;
+  document.getElementById('spin').style.display = 'none';
+  document.getElementById('btn-label').textContent = 'Analyse Again →';
+}
+
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function renderReport(d) {
+  document.getElementById('result-img').src = uploadedURL || '';
+  document.getElementById('scan-label').textContent = d.label;
+  document.getElementById('sev-badge').textContent = d.sev;
+  document.getElementById('sev-badge').className = 'rcard-badge '+d.sevClass;
+
+  const ul = document.getElementById('findings-ul');
+  ul.innerHTML = d.findings.map(f=>`<li>${f}</li>`).join('');
+  document.getElementById('impression-text').innerHTML = d.impression;
+  document.getElementById('conf-val').textContent = d.conf+'%';
+  setTimeout(()=>{ document.getElementById('conf-fill').style.width = d.conf+'%'; }, 100);
+  document.getElementById('rec-text').textContent = d.rec;
+  document.getElementById('rag-list').innerHTML = d.rag.join('<br>');
+
+  document.getElementById('report-content').classList.add('show');
+  document.getElementById('report-content').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function downloadReport() {
+  if(!reportData) return;
+  const txt = `MEDISCAN AI — DIAGNOSTIC REPORT\nGenerated: ${new Date().toLocaleString()}\nModel: LLaVA-Med + RAG (FAISS + LangChain)\n${'='.repeat(48)}\n\nFINDINGS:\n${reportData.findings.map((f,i)=>`${i+1}. ${f}`).join('\n')}\n\nIMPRESSION:\n${reportData.impression.replace(/<[^>]+>/g,'')}\n\nCONFIDENCE: ${reportData.conf}%\n\nRECOMMENDATION:\n${reportData.rec}\n\nRAG SOURCES:\n${reportData.rag.map(r=>r.replace(/<[^>]+>/g,'')).join('\n')}\n\n${'='.repeat(48)}\n⚠ FOR RESEARCH USE ONLY — NOT A MEDICAL DEVICE\nBuilt by Rijul Thakur · github.com/rijulthakur34`;
+  const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([txt],{type:'text/plain'})),download:'mediscan_report.txt'});
+  a.click(); toast('Report downloaded!');
+}
+function copyReport() {
+  if(!reportData) return;
+  navigator.clipboard.writeText(`Findings:\n${reportData.findings.join('\n')}\n\nImpression:\n${reportData.impression.replace(/<[^>]+>/g,'')}\n\nRecommendation:\n${reportData.rec}`).then(()=>toast('Copied to clipboard!'));
+}
+function resetDemo() {
+  uploadedFile=null; uploadedURL=null; reportData=null;
+  const dz=document.getElementById('dropzone');
+  dz.classList.remove('filled');
+  document.getElementById('dz-icon').textContent='🧠';
+  document.getElementById('dz-title').textContent='Drop MRI scan here';
+  document.getElementById('dz-sub').textContent='PNG · JPG · DICOM · NIfTI';
+  document.getElementById('file-chip').classList.remove('show');
+  document.getElementById('analyse-btn').disabled=true;
+  document.getElementById('btn-label').textContent='Analyse Scan →';
+  document.getElementById('progress-wrap').classList.remove('show');
+  document.getElementById('report-content').classList.remove('show');
+  document.getElementById('report-empty').style.display='';
+  document.getElementById('conf-fill').style.width='0%';
+  document.querySelectorAll('.prog-step').forEach(s=>s.classList.remove('active','done'));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+</script>
+</body>
+</html>
